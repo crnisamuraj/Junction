@@ -7,6 +7,7 @@ import Window from "./window.js";
 import Welcome from "./welcome.js";
 import About from "./about.js";
 import ShortcutsWindow from "./ShortcutsWindow.js";
+import { init } from "./desktop.js";
 
 import "./style.css";
 
@@ -44,10 +45,12 @@ export default function Application() {
   application.connect("open", (self, files, hint) => {
     // log(["open", files.length, hint]);
 
-    files.forEach((file) => {
-      Window({
-        application,
-        file,
+    init().then(() => {
+      files.forEach((file) => {
+        Window({
+          application,
+          file,
+        });
       });
     });
   });

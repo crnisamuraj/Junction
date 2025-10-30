@@ -116,7 +116,7 @@ async function getApplicationsForDir(path) {
   return apps;
 }
 
-export async function init() {
+export async function loadApplications() {
   let paths;
 
   if (Xdp.Portal.running_under_sandbox()) {
@@ -149,7 +149,17 @@ export async function init() {
   // });
 }
 
-init().catch(console.error);
+export async function init() {
+  if (applications.length > 0) {
+    return;
+  }
+
+  try {
+    await loadApplications();
+  } catch (err) {
+    console.error(err);
+  }
+}
 
 export function getApplications(content_type) {
   const apps = applications.filter((app) => {
