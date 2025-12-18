@@ -57,45 +57,15 @@ async function getApplicationsForDir(path) {
     const name = file_info.get_name();
     if (!name.endsWith(".desktop")) continue;
 
-    // const path = GLib.build_filenamev([
-    //   parent.get_path(),
-    //   file_info.get_name(),
-    // ]);
-
-    // console.debug(`Reading DesktopAppInfo from ${path}`);
-    // const app = GioUnix.DesktopAppInfo.new_from_filename(path);
-
-    // Alternatively
     const file = enumerator.get_child(file_info);
-    const [contents] = await file.load_contents_async(null);
-    const keyfile = new GLib.KeyFile();
-    const loaded = keyfile.load_from_bytes(contents, GLib.KeyFileFlags.NONE);
-    if (!loaded) {
-      console.warn(`Could not load KeyFile from ${file.get_path()}`);
-      continue;
-    }
-
     let app;
+
     try {
-      app = loadDesktopAppInfo(keyfile);
+      app = await loadDesktopAppInfoFromFile(file);
     } catch (err) {
       console.error(err);
-    }
-    if (!app) {
-      console.warn(`Could not load DesktopAppInfo from ${file.get_path()}`);
       continue;
     }
-
-    if (app.get_nodisplay()) continue;
-    if (excluded_apps.includes(app.junction_id)) continue;
-
-    const mime = app.get_string_list(GLib.KEY_FILE_DESKTOP_KEY_MIME_TYPE);
-    if (mime.length === 0) continue;
-
-    // FIXME
-    app.junction_id = file_info.get_name(); // no get_id() withn desktopappinfo built from keyfile
-    app.junction_keyfile = keyfile; // no way to load keyfile from desktopappinfo without reading the file again
-    app.junction_filename = file.get_path(); // no get_filename() with desktopappinfo built from keyfile
 
     apps.push(app);
   }
@@ -185,7 +155,34 @@ console.log(
   ),
 );
 
-export function loadDesktopAppInfo(keyFile) {
+async function loadDesktopAppInfoFromFile(file) {
+  const [contents] = await file.load_contents_async(null);
+  const keyfile = new GLib.KeyFile();
+  const loaded = keyfile.load_from_bytes(contents, GLib.KeyFileFlags.NONE);
+  if (!loaded) {
+    throw new Error(`Could not load KeyFile from ${file.get_path()}`);
+  }
+
+  const app = loadDesktopAppInfo(keyfile);
+  if (!app) {
+    throw new Error(`Could not load DesktopAppInfo from ${file.get_path()}`);
+  }
+
+  // FIXME
+  app.junction_id = app.get_name(); // no get_id() withn desktopappinfo built from keyfile
+  app.junction_keyfile = keyfile; // no way to load keyfile from desktopappinfo without reading the file again
+  app.junction_filename = file.get_path(); // no get_filename() with desktopappinfo built from keyfile
+
+  if (app.get_nodisplay()) return null;
+  if (excluded_apps.includes(app.junction_id)) return null;
+
+  const mime = app.get_string_list(GLib.KEY_FILE_DESKTOP_KEY_MIME_TYPE);
+  if (!mime || mime.length === 0) return null;
+
+  return app;
+}
+
+function loadDesktopAppInfo(keyFile) {
   if (!Xdp.Portal.running_under_sandbox()) {
     return GioUnix.DesktopAppInfo.new_from_keyfile(keyFile);
   }
